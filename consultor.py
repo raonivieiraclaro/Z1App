@@ -41,11 +41,35 @@ def _request(messages):
         result = json.load(response)
     return result["choices"][0]["message"]["content"]
 
+def _api_error_message(exc):
+    if isinstance(exc, urllib.error.HTTPError):
+        code = exc.code
+        try:
+            raw = json.loads(exc.read(8192).decode("utf-8", errors="replace"))
+            reason = raw.get("error", {}).get("code") or raw.get("error", {}).get("type") or ""
+        except (ValueError, AttributeError):
+            reason = ""
+        if code == 401:
+            return "A chave OPENAI_API_KEY foi rejeitada (HTTP 401). Confira a chave no Render."
+        if code == 429:
+            return ("Limite de uso ou créditos da API atingidos (HTTP 429). "
+                    "Confira faturamento e limites na plataforma da OpenAI.")
+        if code == 403:
+            return "Acesso à API não autorizado (HTTP 403). Confira as permissões do projeto."
+        if code == 404:
+            return "Modelo de IA não encontrado ou sem acesso (HTTP 404). Confira Z1_AI_MODEL."
+        if code == 400 and reason in ("model_not_found", "invalid_model"):
+            return "Modelo configurado não disponível. Confira Z1_AI_MODEL."
+        return "A API retornou erro HTTP " + str(code) + ". Consulte os logs do Render."
+    if isinstance(exc, (TimeoutError, urllib.error.URLError)):
+        return "Falha de rede ou tempo limite ao conectar com a API. Tente novamente."
+    return "A API retornou uma resposta inesperada. Consulte os logs do Render."
+
 async def answer(messages):
     if not os.getenv("OPENAI_API_KEY", "").strip():
         return {"configured": False, "answer": "A IA ainda não está ativada. Configure OPENAI_API_KEY em Environment no Render. Enquanto isso, consulte o catálogo: " + CATALOG}
     try:
         reply = await asyncio.to_thread(_request, messages)
         return {"configured": True, "answer": reply or "Não consegui elaborar uma resposta agora."}
-    except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
-        return {"configured": True, "answer": "O serviço de IA está indisponível no momento. Tente novamente mais tarde."}
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError, KeyError, IndexError) as exc:
+        return {"configured": True, "answer": _api_error_message(exc)}
