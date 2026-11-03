@@ -80,7 +80,7 @@ async def receive(req: Request):
     # Instagram events accepted and authenticated; no messaging without approved API setup.
     if payload.get("object") not in ("whatsapp_business_account","instagram","page"):
         return JSONResponse({"error":"Unsupported object"},status_code=400)
-    if payload.get("object") == "whatsapp_business_account":
+    if payload.get("object") == "whatsapp_business_account" and os.getenv("Z1_WHATSAPP_AUTO_REPLY", "").lower() == "true":
         await process_inbound(payload)
     return {"received":True}
 
