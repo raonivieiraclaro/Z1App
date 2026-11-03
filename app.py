@@ -11,9 +11,11 @@ from fastapi import FastAPI, Request, Form
 from pydantic import BaseModel, Field
 from consultor import answer as consultor_answer
 from knowledge import read_knowledge, save_knowledge
+from integrations import router as meta_router, integration_status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 app = FastAPI(title="Z1 Prospect IA")
+app.include_router(meta_router)
 CATALOG = "https://drive.google.com/file/d/1vu44BXv5hsItreNOfpU_AR6NK6lLrgiF/view?usp=drivesdk"
 REGISTER = "https://escritorio.zyone.com.br/cadastro#?id=leticiajulia"
 COOKIE_NAME = "z1_session"
@@ -54,7 +56,7 @@ def basic_auth_valid(req, user, password):
 
 @app.middleware("http")
 async def auth(req: Request, call_next):
-    if req.url.path in ("/healthz", "/login"):
+    if req.url.path in ("/healthz", "/login", "/webhooks/meta"):
         return await call_next(req)
     user, password = credentials()
     if not user or not password:
@@ -128,7 +130,7 @@ a{color:#e6b95b}input{box-sizing:border-box;width:100%;padding:10px;margin:6px 0
 background:#333;color:white;border:1px solid #777;border-radius:6px}
 button{padding:12px;background:#e6b95b;border:0;border-radius:6px;color:#111}</style>
 <main><h1>✨ Z1 Prospect IA</h1><p>Painel de demonstração — Zyone Cosméticos</p>
-<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/ensinar">Ensinar a IA</a> · <a href="/logout">Sair da conta</a></p>
+<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/ensinar">Ensinar a IA</a> · <a href="/integracoes">Integrações</a> · <a href="/logout">Sair da conta</a></p>
 <section><h2>Catálogo</h2><a href='""" + html.escape(CATALOG, quote=True) + """'
 target="_blank" rel="noopener">Abrir catálogo Zyone</a></section>
 <section><h2>Link de cadastro</h2><a href='""" + html.escape(REGISTER, quote=True) + """'
@@ -245,3 +247,34 @@ body:JSON.stringify({content:document.getElementById('data').value})});
 if(!r.ok)throw Error(r.status);s.textContent='Salvo! Teste no consultor.';
 }catch(e){s.textContent='Erro ao salvar: '+e.message;}
 };</script></main></html>"""
+
+@app.get("/api/integrations")
+def integrations_status():
+    return integration_status()
+
+@app.get("/integracoes", response_class=HTMLResponse)
+def integrations_page():
+    s = integration_status()
+    def state(key):
+        return "Configurado" if s[key] else "Pendente"
+    return """<!doctype html><html lang="pt-br"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Integrações — Z1</title>
+<style>body{font:16px system-ui;background:#111;color:#eee;padding:20px}
+main{max-width:740px;margin:auto}section{background:#222;border-radius:12px;padding:16px;margin:14px 0}
+a{color:#e6b95b}code{overflow-wrap:anywhere;color:#ffcf72}</style>
+<main><p><a href="/">← Painel</a></p><h1>Integrações oficiais</h1>
+<section><h2>Meta Webhook</h2><p>""" + state("meta_webhook") + """</p>
+<p>URL para configuração no painel Meta Developers:</p>
+<code>https://z1-prospect-ia.onrender.com/webhooks/meta</code>
+<p>Variáveis no Render: META_APP_SECRET e META_VERIFY_TOKEN.</p></section>
+<section><h2>WhatsApp Business Cloud API</h2><p>""" + state("whatsapp") + """</p>
+<p>Adicione WHATSAPP_ACCESS_TOKEN e WHATSAPP_PHONE_NUMBER_ID.
+Para habilitar respostas automáticas após aprovação e testes, configure
+Z1_WHATSAPP_AUTO_REPLY=true. Inicialmente está desabilitado.</p></section>
+<section><h2>Instagram</h2><p>""" + state("instagram") + """</p>
+<p>O webhook recebe eventos assinados, mas a troca de mensagens ainda depende de
+permissões e tokens oficiais do Instagram. Não há prospecção não solicitada.</p></section>
+<section><h2>Cadastro Zyone</h2><p>Link disponível. Integração de cadastro via API
+depende de documentação e credenciais oficiais da Zyone.</p></section>
+</main></html>"""
