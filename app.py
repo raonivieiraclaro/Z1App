@@ -8,6 +8,8 @@ import html
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Request, Form
+from pydantic import BaseModel, Field
+from consultor import answer as consultor_answer
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 app = FastAPI(title="Z1 Prospect IA")
@@ -125,7 +127,7 @@ a{color:#e6b95b}input{box-sizing:border-box;width:100%;padding:10px;margin:6px 0
 background:#333;color:white;border:1px solid #777;border-radius:6px}
 button{padding:12px;background:#e6b95b;border:0;border-radius:6px;color:#111}</style>
 <main><h1>✨ Z1 Prospect IA</h1><p>Painel de demonstração — Zyone Cosméticos</p>
-<p><a href="/logout">Sair da conta</a></p>
+<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/logout">Sair da conta</a></p>
 <section><h2>Catálogo</h2><a href='""" + html.escape(CATALOG, quote=True) + """'
 target="_blank" rel="noopener">Abrir catálogo Zyone</a></section>
 <section><h2>Link de cadastro</h2><a href='""" + html.escape(REGISTER, quote=True) + """'
@@ -145,3 +147,61 @@ try{const u=new URL(url);if(u.protocol!=='https:')continue;
 const a=document.createElement('a');a.href=u.href;a.target='_blank';a.rel='noopener';
 a.textContent=label;target.append(a,document.createTextNode('  '));}catch(e){}
 }});</script></main></html>"""
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str = Field(min_length=1, max_length=2000)
+
+class ChatInput(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=12)
+
+@app.post("/api/chat")
+async def chat(payload: ChatInput):
+    messages = [{"role": item.role, "content": item.content} for item in payload.messages
+                if item.role in ("user", "assistant")]
+    if not messages or messages[-1]["role"] != "user":
+        return JSONResponse({"error": "Envie uma pergunta."}, status_code=400)
+    return await consultor_answer(messages)
+
+@app.get("/consultor", response_class=HTMLResponse)
+def consultor_page():
+    return """<!doctype html><html lang="pt-br"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Consultor — Z1 Prospect IA</title>
+<style>body{background:#111;color:#eee;font:16px system-ui;margin:0;padding:20px}
+main{max-width:720px;margin:auto}a{color:#e6b95b}
+#conversation{background:#222;border-radius:12px;padding:16px;min-height:260px;max-height:55vh;overflow:auto}
+.message{white-space:pre-wrap;margin:12px 0;padding:12px;border-radius:10px;background:#333}
+.mine{background:#3c321e}textarea{box-sizing:border-box;width:100%;min-height:90px;
+margin:16px 0 8px;background:#222;color:#fff;border:1px solid #777;border-radius:8px;
+padding:12px;font:inherit}button{padding:12px 22px;background:#e6b95b;color:#111;
+border:0;border-radius:8px;font-weight:bold}small{color:#bbb}</style>
+<main><p><a href="/">← Painel</a></p><h1>✨ Consultor Z1</h1>
+<p>Teste administrativo de respostas sobre produtos e oportunidade Zyone.</p>
+<div id="conversation" aria-live="polite"><div class="message">Olá! Faça uma pergunta sobre o catálogo, a oportunidade ou o cadastro.</div></div>
+<textarea id="question" maxlength="2000" placeholder="Digite sua pergunta..."></textarea>
+<button id="send">Enviar pergunta</button>
+<p id="status" role="status"></p><small>Não compartilhe dados pessoais ou senhas.
+O conteúdo do catálogo ainda não foi importado. O histórico fica apenas nesta tela.</small>
+<script>
+const history=[];
+const box=document.getElementById('conversation');
+const question=document.getElementById('question');
+const button=document.getElementById('send');
+const status=document.getElementById('status');
+function add(text,mine){const div=document.createElement('div');
+div.className='message'+(mine?' mine':'');div.textContent=text;box.appendChild(div);
+box.scrollTop=box.scrollHeight;}
+button.addEventListener('click',async()=>{
+const text=question.value.trim();if(!text||button.disabled)return;
+question.value='';add(text,true);history.push({role:'user',content:text});
+button.disabled=true;status.textContent='Consultando...';
+try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({messages:history.slice(-12)})});
+if(!r.ok)throw new Error('HTTP '+r.status);
+const data=await r.json();add(data.answer||'Resposta não disponível.',false);
+history.push({role:'assistant',content:data.answer||''});
+}catch(e){add('Falha de conexão. Confira o login e tente novamente.',false);
+history.pop();}finally{button.disabled=false;status.textContent='';}
+});
+</script></main></html>"""
