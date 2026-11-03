@@ -5,7 +5,7 @@ import hashlib
 import base64
 import secrets
 import html
-from urllib.parse import quote
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -95,9 +95,9 @@ font-weight:700;border:0;border-radius:8px}</style>
 @app.post("/login")
 async def login_submit(req: Request):
     user, password = credentials()
-    form = await req.form()
-    entered_user = str(form.get("username", ""))
-    entered_password = str(form.get("password", ""))
+    form = parse_qs((await req.body()).decode("utf-8", errors="replace"))
+    entered_user = form.get("username", [""])[0]
+    entered_password = form.get("password", [""])[0]
     if not user or not password or not (secrets.compare_digest(entered_user, user)
                                       and secrets.compare_digest(entered_password, password)):
         return RedirectResponse("/login?error=1", status_code=303)
