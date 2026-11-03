@@ -10,6 +10,7 @@ from urllib.parse import parse_qs
 from fastapi import FastAPI, Request, Form
 from pydantic import BaseModel, Field
 from consultor import answer as consultor_answer
+from knowledge import read_knowledge, save_knowledge
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 app = FastAPI(title="Z1 Prospect IA")
@@ -127,7 +128,7 @@ a{color:#e6b95b}input{box-sizing:border-box;width:100%;padding:10px;margin:6px 0
 background:#333;color:white;border:1px solid #777;border-radius:6px}
 button{padding:12px;background:#e6b95b;border:0;border-radius:6px;color:#111}</style>
 <main><h1>✨ Z1 Prospect IA</h1><p>Painel de demonstração — Zyone Cosméticos</p>
-<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/logout">Sair da conta</a></p>
+<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/ensinar">Ensinar a IA</a> · <a href="/logout">Sair da conta</a></p>
 <section><h2>Catálogo</h2><a href='""" + html.escape(CATALOG, quote=True) + """'
 target="_blank" rel="noopener">Abrir catálogo Zyone</a></section>
 <section><h2>Link de cadastro</h2><a href='""" + html.escape(REGISTER, quote=True) + """'
@@ -205,3 +206,42 @@ history.push({role:'assistant',content:data.answer||''});
 history.pop();}finally{button.disabled=false;status.textContent='';}
 });
 </script></main></html>"""
+
+class KnowledgeInput(BaseModel):
+    content: str = Field(max_length=20000)
+
+@app.get("/api/knowledge")
+def knowledge_get():
+    return {"content": read_knowledge()}
+
+@app.post("/api/knowledge")
+def knowledge_save(payload: KnowledgeInput):
+    save_knowledge(payload.content)
+    return {"saved": True}
+
+@app.get("/ensinar", response_class=HTMLResponse)
+def knowledge_editor():
+    value = html.escape(read_knowledge())
+    return """<!doctype html><html lang="pt-br"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ensinar IA — Z1</title><style>
+body{background:#111;color:#eee;font:16px system-ui;padding:20px}
+a{color:#e6b95b}main{max-width:750px;margin:auto}
+textarea{box-sizing:border-box;width:100%;height:50vh;background:#222;color:white;
+border:1px solid #888;border-radius:10px;padding:12px;font:16px system-ui}
+button{background:#e6b95b;padding:14px;border:0;border-radius:8px;font-weight:bold}
+</style><main><p><a href="/">Painel</a> · <a href="/consultor">Testar IA</a></p>
+<h1>Ensinar a IA</h1><p>Adicione informações verificadas sobre produtos, preços, regras e dúvidas frequentes.</p>
+<textarea id="data" maxlength="20000">""" + value + """</textarea>
+<p><button id="save">Salvar informações</button></p><p id="status"></p>
+<p>Não insira dados pessoais ou senhas. Sem armazenamento persistente no Render,
+o conteúdo pode ser perdido em reinícios ou deploys. Guarde uma cópia.</p>
+<script>
+document.getElementById('save').onclick=async function(){
+const s=document.getElementById('status');s.textContent='Salvando...';
+try{const r=await fetch('/api/knowledge',{method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({content:document.getElementById('data').value})});
+if(!r.ok)throw Error(r.status);s.textContent='Salvo! Teste no consultor.';
+}catch(e){s.textContent='Erro ao salvar: '+e.message;}
+};</script></main></html>"""
