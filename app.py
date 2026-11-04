@@ -12,10 +12,12 @@ from pydantic import BaseModel, Field
 from consultor import answer as consultor_answer
 from knowledge import read_knowledge, save_knowledge
 from integrations import router as meta_router, integration_status
+from meta_ads import router as ads_router
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 app = FastAPI(title="Z1 Prospect IA")
 app.include_router(meta_router)
+app.include_router(ads_router)
 CATALOG = "https://drive.google.com/file/d/1vu44BXv5hsItreNOfpU_AR6NK6lLrgiF/view?usp=drivesdk"
 REGISTER = "https://escritorio.zyone.com.br/cadastro#?id=leticiajulia"
 COOKIE_NAME = "z1_session"
@@ -130,7 +132,7 @@ a{color:#e6b95b}input{box-sizing:border-box;width:100%;padding:10px;margin:6px 0
 background:#333;color:white;border:1px solid #777;border-radius:6px}
 button{padding:12px;background:#e6b95b;border:0;border-radius:6px;color:#111}</style>
 <main><h1>✨ Z1 Prospect IA</h1><p>Painel de demonstração — Zyone Cosméticos</p>
-<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/ensinar">Ensinar a IA</a> · <a href="/integracoes">Integrações</a> · <a href="/logout">Sair da conta</a></p>
+<p><a href="/consultor">Abrir consultor de IA</a> · <a href="/ensinar">Ensinar a IA</a> · <a href="/integracoes">Integrações</a> · <a href="/meta-ads">Meta Ads</a> · <a href="/logout">Sair da conta</a></p>
 <section><h2>Catálogo</h2><a href='""" + html.escape(CATALOG, quote=True) + """'
 target="_blank" rel="noopener">Abrir catálogo Zyone</a></section>
 <section><h2>Link de cadastro</h2><a href='""" + html.escape(REGISTER, quote=True) + """'
@@ -264,6 +266,8 @@ def integrations_page():
 main{max-width:740px;margin:auto}section{background:#222;border-radius:12px;padding:16px;margin:14px 0}
 a{color:#e6b95b}code{overflow-wrap:anywhere;color:#ffcf72}</style>
 <main><p><a href="/">← Painel</a></p><h1>Integrações oficiais</h1>
+<section><h2>Meta Ads</h2><p>Prepare rascunhos, revise e crie campanhas pausadas.</p>
+<p><a href="/meta-ads">Abrir campanhas Meta Ads</a></p></section>
 <section><h2>Meta Webhook</h2><p>""" + state("meta_webhook") + """</p>
 <p>URL para configuração no painel Meta Developers:</p>
 <code>https://z1-prospect-ia.onrender.com/webhooks/meta</code>
@@ -278,3 +282,4 @@ permissões e tokens oficiais do Instagram. Não há prospecção não solicitad
 <section><h2>Cadastro Zyone</h2><p>Link disponível. Integração de cadastro via API
 depende de documentação e credenciais oficiais da Zyone.</p></section>
 </main></html>"""
+
